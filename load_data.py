@@ -1,98 +1,13 @@
-import logging
-import os
 import sqlite3
-import uuid
-from contextlib import contextmanager
-from dataclasses import astuple, dataclass, field, fields
-from datetime import date, datetime
+from dataclasses import astuple, fields
 
 import psycopg2
-from dotenv import load_dotenv
+from context_managers import postgres_conn_context, sqlite_conn_context
+from data_classes import Filmwork, Genre, GenreFilmwork, Person, PersonFilmwork
+from db_settings import dsl, sql_db_path
+from logger import logging
 from psycopg2.extensions import connection as _connection
-from psycopg2.extras import DictCursor, execute_values
-
-# Load environment variables
-load_dotenv()
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
-
-# Data classes for database models
-@dataclass
-class Genre:
-    name: str
-    description: str = ""
-    id: uuid.UUID = field(default_factory=uuid.uuid4)
-    created: datetime = field(default_factory=datetime.now())
-    modified: datetime = field(default_factory=datetime.now())
-
-
-@dataclass
-class Person:
-    full_name: str
-    id: uuid.UUID = field(default_factory=uuid.uuid4)
-    created: datetime = field(default_factory=datetime.now())
-    modified: datetime = field(default_factory=datetime.now())
-
-
-@dataclass
-class Filmwork:
-    title: str
-    description: str = ""
-    rating: float = field(default=0.0)
-    type: str = "MOV"
-    certificate: str = ""
-    file_path: str = ""
-    creation_date: date = None
-    id: uuid.UUID = field(default_factory=uuid.uuid4)
-    created: datetime = field(default_factory=datetime.now())
-    modified: datetime = field(default_factory=datetime.now())
-
-
-@dataclass
-class GenreFilmwork:
-    id: uuid.UUID = field(default_factory=uuid.uuid4)
-    film_work_id: uuid.UUID = field(default_factory=uuid.uuid4)
-    genre_id: uuid.UUID = field(default_factory=uuid.uuid4)
-    created: datetime = field(default_factory=datetime.now())
-
-
-@dataclass
-class PersonFilmwork:
-    role: str
-    id: uuid.UUID = field(default_factory=uuid.uuid4)
-    film_work_id: uuid.UUID = field(default_factory=uuid.uuid4)
-    person_id: uuid.UUID = field(default_factory=uuid.uuid4)
-    created: datetime = field(default_factory=datetime.now())
-
-
-@contextmanager
-def sqlite_conn_context(db_path: str):
-    """Context manager for SQLite connection"""
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    try:
-        yield conn
-    finally:
-        conn.close()
-
-
-@contextmanager
-def postgres_conn_context(dsl):
-    """Context manager for PostgreSQL connection"""
-    conn = psycopg2.connect(**dsl, cursor_factory=DictCursor)
-    try:
-        yield conn
-    except psycopg2.Error as e:
-        conn.rollback()
-        raise e
-    else:
-        conn.commit()
-    finally:
-        conn.close()
+from psycopg2.extras import execute_values
 
 
 def adapt_keys_for_postgres(row, column_names):
@@ -147,16 +62,6 @@ def load_from_sqlite(
 
 
 if __name__ == "__main__":
-    dsl = {
-        "dbname": os.environ.get("DB_NAME"),
-        "user": os.environ.get("DB_USER"),
-        "password": os.environ.get("DB_PASSWORD"),
-        "host": "localhost",
-        "port": 5432,
-        "options": os.environ.get("DB_OPTIONS"),
-    }
-    sql_db_path = os.environ.get("DB_PATH")
-
     with sqlite_conn_context(sql_db_path) as sqlite_conn, postgres_conn_context(
         dsl
     ) as pg_conn:
